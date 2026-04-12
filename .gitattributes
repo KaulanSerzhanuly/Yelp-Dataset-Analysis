@@ -1,3 +1,4 @@
 yelp_academic_dataset_business.jsonv filter=lfs diff=lfs merge=lfs -text
 yelp_academic_dataset_review.json filter=lfs diff=lfs merge=lfs -text
+*.json filter=lfs diff=lfs merge=lfs -text
 yelp_academic_dataset_business.json filter=lfs diff=lfs merge=lfs -text
