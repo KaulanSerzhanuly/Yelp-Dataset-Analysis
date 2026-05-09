@@ -17,6 +17,7 @@ from flask import Flask, Response, send_from_directory
 
 BASE = Path(__file__).resolve().parent
 STATIC = BASE / "static"
+INTERACTIVE = STATIC / "interactive"
 
 _DEFAULT_NAMES = [
     "cs163prject (1).ipynb",
@@ -105,6 +106,28 @@ def _notebook_to_html(nb_path: Path) -> str:
     nb_name = nb_path.name
     analytics_html = _fig_stack(analytics_figs)
     prelim_html = _fig_stack(prelim_figs)
+    interactive_files = sorted([p.name for p in INTERACTIVE.glob("*.html")]) if INTERACTIVE.is_dir() else []
+    interactive_options = "".join([f'<option value="{name}">{name}</option>' for name in interactive_files])
+    interactive_block = (
+        f"""
+        <div class="callout">
+          <strong>How to add interactive graphs.</strong>
+          Export any Plotly chart to a standalone HTML file and place it in <code>static/interactive/</code>.
+          Files found: <strong>{len(interactive_files)}</strong>.
+        </div>
+        <div class="interactive-controls">
+          <label for="interactive-select"><strong>Select a figure</strong></label>
+          <select id="interactive-select" {'disabled' if not interactive_files else ''}>
+            {interactive_options if interactive_files else '<option value="">No interactive files found</option>'}
+          </select>
+        </div>
+        <div class="interactive-frame-wrap">
+          <iframe id="interactive-frame" title="Interactive figure" src="" loading="lazy" referrerpolicy="no-referrer"></iframe>
+        </div>
+        """
+        if True
+        else ""
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
@@ -269,59 +292,175 @@ ul.points {{
   padding-left: 1.2rem;
 }}
 ul.points li {{ margin-bottom: 0.45rem; }}
+.two-col {{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}}
+@media (min-width: 900px) {{
+  .two-col {{ grid-template-columns: 1.1fr 0.9fr; }}
+}}
+.figure-caption {{
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-align: center;
+}}
+.interactive-controls {{
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}}
+.interactive-controls select {{
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(26, 26, 26, 0.18);
+  background: #fff;
+  font-family: var(--font-sans);
+}}
+.interactive-frame-wrap {{
+  margin-top: 1rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(26, 26, 26, 0.10);
+  box-shadow: 0 8px 28px rgba(26, 26, 26, 0.08);
+  background: #fff;
+}}
+.interactive-frame-wrap iframe {{
+  width: 100%;
+  height: min(72vh, 760px);
+  border: 0;
+  display: block;
+}}
 </style></head><body>
 <header class="hero">
   <p class="kicker">CS163 · Data-driven report</p>
   <h1>Yelp Restaurant Open vs. Closed Analysis</h1>
-  <p class="subtitle">Exploring ratings, review volume, and review text signals linked to whether a restaurant is open in the Yelp Open Dataset.</p>
+  <p class="subtitle">Which observable Yelp (and optional delivery-platform) signals are associated with whether a restaurant is <strong>open</strong> or <strong>closed</strong> in the dataset?</p>
   <nav class="nav" aria-label="Report sections">
-    <button type="button" class="nav-btn active" data-tab="overview">Overview</button>
-    <button type="button" class="nav-btn" data-tab="dataset">Dataset</button>
-    <button type="button" class="nav-btn" data-tab="methods">Methods</button>
-    <button type="button" class="nav-btn" data-tab="analytics">Analytics</button>
-    <button type="button" class="nav-btn" data-tab="results">Preliminary results</button>
+    <button type="button" class="nav-btn active" data-tab="landing">Landing</button>
+    <button type="button" class="nav-btn" data-tab="objectives">Project objectives</button>
+    <button type="button" class="nav-btn" data-tab="methods">Analytical methods</button>
+    <button type="button" class="nav-btn" data-tab="findings">Major findings</button>
+    <button type="button" class="nav-btn" data-tab="interactive">Interactive</button>
+    <button type="button" class="nav-btn" data-tab="appendix">Appendix (notebook figures)</button>
   </nav>
 </header>
-<p class="meta">CS163 · Spring 2026 · Live view from <strong>{nb_name}</strong> (chart outputs only)</p>
+<p class="meta">CS163 · Spring 2026 · Live view from <strong>{nb_name}</strong> (embedded chart outputs + static visuals)</p>
 <div class="wrap">
   <div class="panels">
-    <section id="panel-overview" class="panel card active" role="tabpanel">
-      <h2>Project overview</h2>
+    <section id="panel-landing" class="panel card active" role="tabpanel">
+      <h2>Landing page</h2>
       <div class="rule"></div>
-      <p class="lead">This report summarizes exploratory work on the <strong>Yelp Open Dataset</strong>, focused on restaurants and the binary <strong>is_open</strong> label (open vs. closed at the time of the snapshot).</p>
-      <p>We connect structured business fields—such as star ratings and review counts—to patterns in review text, including sentiment and simple “complaint” word rates for businesses with enough reviews. The goal is descriptive: highlight factors that differ between open and closed listings, and support later modeling (for example logistic regression with held-out evaluation).</p>
+      <p class="lead">This site summarizes our work on predicting restaurant “survival” (open vs. closed) using the <strong>Yelp Open Dataset</strong> and optional delivery-platform signals.</p>
+      <div class="two-col">
+        <div>
+          <p>We study whether easily observed signals—like <strong>review volume</strong>, <strong>star ratings</strong>, and <strong>review-text sentiment</strong>—are associated with a restaurant being open (<code>is_open=1</code>) or closed (<code>is_open=0</code>) in the dataset snapshot.</p>
+          <div class="callout">
+            <strong>Key insights (preliminary).</strong>
+            <ul class="points">
+              <li><strong>Review volume matters:</strong> restaurants with more reviews are more likely to be open.</li>
+              <li><strong>Ratings matter less than expected:</strong> star distributions overlap heavily between open/closed businesses.</li>
+              <li><strong>Sentiment is statistically different but weak:</strong> average sentiment has limited predictive power by itself.</li>
+              <li><strong>Delivery-platform data can help slightly</strong> (optional extension) when combined with Yelp signals.</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <figure class="figure">
+            <img src="/assets/viz_core.png" alt="Core visualization"/>
+            <figcaption class="figure-caption">Core results visualization (static).</figcaption>
+          </figure>
+        </div>
+      </div>
+      <p class="muted">If you’re currently building the model-comparison visualization, you can export it as a PNG into <code>static/</code> (for a static embed) or as a Plotly HTML file into <code>static/interactive/</code> (for an interactive embed).</p>
       <div class="callout">
         <strong>Research question.</strong> Which observable Yelp signals (ratings, engagement, text sentiment, complaint language) are associated with restaurants being open vs. closed in the dataset?
       </div>
     </section>
-    <section id="panel-dataset" class="panel card" role="tabpanel">
-      <h2>Dataset</h2>
+    <section id="panel-objectives" class="panel card" role="tabpanel">
+      <h2>Project objectives</h2>
       <div class="rule"></div>
-      <p>Primary source is the <strong>Yelp Open Dataset</strong> (business and review JSON). Businesses are filtered to those whose categories include “Restaurant.” Review-based features use reviews tied to each business; analyses that require stable text summaries often restrict to restaurants with at least a minimum review count.</p>
-      <p>An optional extension (not required for this page) is to merge in <strong>UberEats</strong>-style marketplace fields by matching on normalized name and address to study whether delivery-platform signals add predictive value beyond Yelp alone.</p>
+      <p class="lead">Problem statement: this project investigates which factors are associated with whether a restaurant is <strong>open</strong> or <strong>closed</strong> in the dataset.</p>
+      <p><strong>Data sources.</strong> Primary source is the <strong>Yelp Open Dataset</strong> (business + reviews). Optional extension is merging delivery-platform (e.g., UberEats-style) availability via approximate matching on normalized name/address.</p>
       <ul class="points">
-        <li><strong>Unit of analysis:</strong> one row per restaurant (<code>business_id</code>).</li>
-        <li><strong>Outcome:</strong> <code>is_open</code> (1 = open, 0 = closed).</li>
-        <li><strong>Key predictors:</strong> stars, review count, text sentiment (e.g. VADER compound), complaint-token rate.</li>
+        <li><strong>Unit of analysis</strong>: one row per restaurant (<code>business_id</code>).</li>
+        <li><strong>Target variable</strong>: <code>is_open</code> (1 = open, 0 = closed).</li>
+        <li><strong>Goal</strong>: identify which features differ between open and closed restaurants, then evaluate simple predictive models.</li>
       </ul>
+      <div class="callout">
+        <strong>Hypotheses (high level).</strong>
+        We test whether open restaurants tend to have (1) higher star ratings, (2) more reviews, and (3) more positive average sentiment.
+      </div>
     </section>
     <section id="panel-methods" class="panel card" role="tabpanel">
-      <h2>Methods</h2>
+      <h2>Analytical methods</h2>
       <div class="rule"></div>
-      <p>Code in the notebook loads JSON lines, cleans and filters the restaurant subset, and builds aggregates from reviews where needed. Text sentiment uses a lightweight lexicon model; complaint frequency can be defined as the rate of occurrence of a small dictionary of negative-service terms in review text.</p>
-      <p>For classification-style questions, a common approach is a <strong>scikit-learn</strong> pipeline: numeric scaling, optional one-hot encoding for geography, and <strong>logistic regression</strong> with <code>class_weight</code> to mitigate imbalance, evaluated with <strong>F1</strong> and <strong>ROC-AUC</strong> on a train/test split.</p>
-      <p class="muted">Figures below are rendered from the latest saved matplotlib (or similar) outputs embedded in the notebook.</p>
+      <p class="lead">We combine filtering + feature engineering with statistical tests and a baseline ML classifier.</p>
+      <ul class="points">
+        <li><strong>Data processing</strong>: filter businesses to restaurants; restrict analyses to restaurants with ≥ 50 reviews for stable text aggregates; normalize names/addresses for Yelp↔delivery-platform matching (optional).</li>
+        <li><strong>Feature engineering</strong>:
+          <ul class="points">
+            <li><code>log_reviews</code>: log(1 + review_count)</li>
+            <li><code>avg_sentiment</code>: average review sentiment (e.g., VADER compound)</li>
+            <li><code>avg_complaints</code>: simple complaint-token frequency/rate (dictionary-based)</li>
+            <li><code>delivery_presence</code>: indicator for presence on delivery platform (optional)</li>
+          </ul>
+        </li>
+        <li><strong>Statistical methods</strong>: two-sample t-tests (numeric features), chi-square tests (categorical associations where relevant).</li>
+        <li><strong>Machine learning</strong>: logistic regression classifier with evaluation metrics <strong>accuracy</strong>, <strong>F1</strong>, and <strong>ROC-AUC</strong>.</li>
+      </ul>
+      <div class="callout">
+        <strong>Cloud data storage?</strong>
+        If you keep the full Yelp JSON locally for analysis, the web app should ship only <em>outputs</em> (plots + small derived tables).
+        If you want the site to query data live, a good next step is storing aggregated features in a managed service (e.g., BigQuery / Cloud SQL) and serving only the filtered restaurant-level table to the app.
+      </div>
     </section>
-    <section id="panel-analytics" class="panel card" role="tabpanel">
-      <h2>Analytics</h2>
+    <section id="panel-findings" class="panel card" role="tabpanel">
+      <h2>Major findings</h2>
       <div class="rule"></div>
-      <p class="muted">First half of embedded figures from the notebook (execution order).</p>
+      <p class="lead">Preliminary results from our hypothesis tests (from the submitted report draft).</p>
+      <h3 style="margin-top: 1.25rem; font-family: var(--font-display);">Hypothesis 1: Open restaurants have higher average Yelp star ratings.</h3>
+      <ul class="points">
+        <li><strong>Result</strong>: t-test (t = 11.94), (p &lt; 0.001).</li>
+        <li><strong>Interpretation</strong>: statistically significant difference, but distributions overlap heavily; ratings alone are a weak separator.</li>
+      </ul>
+      <h3 style="margin-top: 1.25rem; font-family: var(--font-display);">Hypothesis 2: Restaurants with more reviews are more likely to be open.</h3>
+      <ul class="points">
+        <li><strong>Result</strong>: t-test (t = 22.86), (p &lt; 0.001).</li>
+        <li><strong>Interpretation</strong>: open restaurants have higher median and overall review-count distribution; engagement is a stronger signal.</li>
+      </ul>
+      <h3 style="margin-top: 1.25rem; font-family: var(--font-display);">Hypothesis 3: Restaurants with more positive average sentiment are more likely to be open.</h3>
+      <ul class="points">
+        <li><strong>Result</strong>: t-test (t = 6.97), (p &lt; 0.001); correlation (≈ 0.049).</li>
+        <li><strong>Interpretation</strong>: sentiment differs slightly but is weakly related to status; limited predictive power alone.</li>
+      </ul>
+      <div class="two-col" style="margin-top: 1.5rem;">
+        <figure class="figure">
+          <img src="/assets/viz_text.png" alt="Text/sentiment visualization"/>
+          <figcaption class="figure-caption">Text-based results visualization (static).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="/assets/viz_core.png" alt="Core visualization"/>
+          <figcaption class="figure-caption">Core results visualization (static).</figcaption>
+        </figure>
+      </div>
+      <p class="muted" style="margin-top: 1rem;">You can replace these static images with interactive versions by exporting Plotly HTML into <code>static/interactive/</code> and using the Interactive tab.</p>
+    </section>
+    <section id="panel-interactive" class="panel card" role="tabpanel">
+      <h2>Interactive diagram</h2>
+      <div class="rule"></div>
+      <p class="muted">If you export interactive figures (Plotly) as standalone HTML, this page will automatically list and render them.</p>
+      {interactive_block}
+    </section>
+    <section id="panel-appendix" class="panel card" role="tabpanel">
+      <h2>Appendix (notebook figures)</h2>
+      <div class="rule"></div>
+      <h3 style="margin-top: 1.25rem; font-family: var(--font-display);">Figures (part 1)</h3>
       {analytics_html}
-    </section>
-    <section id="panel-results" class="panel card" role="tabpanel">
-      <h2>Preliminary results</h2>
-      <div class="rule"></div>
-      <p class="muted">Remaining figures from the notebook. Interpret alongside class balance and snapshot timing—correlation is not causation.</p>
+      <h3 style="margin-top: 1.25rem; font-family: var(--font-display);">Figures (part 2)</h3>
       {prelim_html}
     </section>
   </div>
@@ -339,6 +478,25 @@ ul.points li {{ margin-bottom: 0.45rem; }}
       }});
     }});
   }});
+
+  var select = document.getElementById("interactive-select");
+  var frame = document.getElementById("interactive-frame");
+  function setInteractive(name) {{
+    if (!select || !frame) return;
+    if (!name) {{
+      frame.removeAttribute("src");
+      return;
+    }}
+    frame.setAttribute("src", "/assets/interactive/" + name);
+  }}
+  if (select) {{
+    select.addEventListener("change", function () {{
+      setInteractive(select.value);
+    }});
+    if (select.value) {{
+      setInteractive(select.value);
+    }}
+  }}
 }})();
 </script>
 </body></html>"""
@@ -375,6 +533,22 @@ def _get_ipynb_report() -> str | None:
 
 app = Flask(__name__, static_folder=str(STATIC), static_url_path="/assets")
 server = app
+
+
+@app.route("/assets/<path:filename>")
+def assets(filename: str):
+    """
+    App Engine deployments sometimes have assets at the repo root (not under static/).
+    Prefer static/, but fall back to BASE/ to avoid broken images.
+    """
+    static_path = STATIC / filename
+    if static_path.is_file():
+        return send_from_directory(STATIC, filename)
+    base_path = BASE / filename
+    if base_path.is_file():
+        return send_from_directory(BASE, filename)
+    # Let Flask return a 404 (consistent with static behavior)
+    return Response("Not found", status=404, mimetype="text/plain")
 
 
 @app.route("/")
