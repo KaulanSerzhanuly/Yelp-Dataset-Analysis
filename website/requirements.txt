@@ -1,4 +1,5 @@
 # App Engine Standard (python311) + local dev
 Flask>=3.0.0,<4
 gunicorn>=22.0.0,<24
+requests>=2.31.0,<3
 
