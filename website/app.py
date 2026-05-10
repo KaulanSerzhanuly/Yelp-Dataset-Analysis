@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import requests
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from flask import Flask, Response, send_from_directory
 BASE = Path(__file__).resolve().parent
 STATIC = BASE / "static"
 INTERACTIVE = STATIC / "interactive"
+INFERENCE_URL = "https://restaurant-inference-940451978632.us-central1.run.app/predict"
 
 _DEFAULT_NAMES = [
     "cs163prject (1).ipynb",
@@ -345,6 +347,7 @@ ul.points li {{ margin-bottom: 0.45rem; }}
     <button type="button" class="nav-btn" data-tab="methods">Analytical methods</button>
     <button type="button" class="nav-btn" data-tab="findings">Major findings</button>
     <button type="button" class="nav-btn" data-tab="interactive">Interactive</button>
+    <button type="button" class="nav-btn" data-tab="prediction">Prediction Tool</button>
     <button type="button" class="nav-btn" data-tab="appendix">Appendix (notebook figures)</button>
   </nav>
 </header>
@@ -455,6 +458,34 @@ ul.points li {{ margin-bottom: 0.45rem; }}
       <p class="muted">If you export interactive figures (Plotly) as standalone HTML, this page will automatically list and render them.</p>
       {interactive_block}
     </section>
+    <section id="panel-prediction" class="panel card" role="tabpanel">
+  <h2>Prediction Tool</h2>
+  <div class="rule"></div>
+  <p class="lead">
+    This page demonstrates the Cloud Run machine learning inference service.
+    The website sends restaurant features to the deployed API, which returns
+    a predicted operating status and probability.
+  </p>
+
+  <div class="callout">
+    <strong>Example input sent to Cloud Run:</strong>
+    <ul class="points">
+      <li>Stars: 4.5</li>
+      <li>Log reviews: 5.3</li>
+      <li>Average sentiment: 0.27</li>
+      <li>Average complaints: 0.12</li>
+      <li>Delivery presence: 1</li>
+      <li>UberEats score: 4.6</li>
+      <li>UberEats ratings: 500</li>
+      <li>Price level: 2</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <strong>Prediction result from Cloud Run:</strong>
+    <p id="prediction-output">Loading prediction...</p>
+  </div>
+</section>
     <section id="panel-appendix" class="panel card" role="tabpanel">
       <h2>Appendix (notebook figures)</h2>
       <div class="rule"></div>
@@ -497,6 +528,28 @@ ul.points li {{ margin-bottom: 0.45rem; }}
       setInteractive(select.value);
     }}
   }}
+  var predictionOutput = document.getElementById("prediction-output");
+
+if (predictionOutput) {{
+  fetch("/predict-example")
+    .then(function(response) {{
+      return response.json();
+    }})
+    .then(function(data) {{
+      if (data.error) {{
+        predictionOutput.textContent = "Error: " + data.error;
+      }} else {{
+        var status = data.prediction === 1 ? "Open" : "Closed";
+        var probability = (data.probability_open * 100).toFixed(1);
+        predictionOutput.textContent =
+          "Predicted Status: " + status +
+          " | Probability Open: " + probability + "%";
+      }}
+    }})
+    .catch(function(error) {{
+      predictionOutput.textContent = "Could not load prediction.";
+    }});
+}}
 }})();
 </script>
 </body></html>"""
@@ -550,7 +603,26 @@ def assets(filename: str):
     # Let Flask return a 404 (consistent with static behavior)
     return Response("Not found", status=404, mimetype="text/plain")
 
+@app.route("/predict-example")
+def predict_example():
+    payload = {
+        "log_reviews": 5.3,
+        "stars": 4.5,
+        "avg_sentiment": 0.27,
+        "avg_complaints": 0.12,
+        "delivery_presence": 1,
+        "ubereats_score": 4.6,
+        "ubereats_ratings": 500,
+        "price_level": 2
+    }
 
+    try:
+        response = requests.post(INFERENCE_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+       
 @app.route("/")
 def index():
     static_index = STATIC / "index.html"
