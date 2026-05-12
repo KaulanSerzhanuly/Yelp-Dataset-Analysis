@@ -92,49 +92,57 @@ Multiple classification models were trained to predict `is_open`
 - Hosted on **Google App Engine**
 - Gunicorn application server
 - Interactive Plotly charts embedded through static HTML files
-
+- FastAPI inference service deployed on Google Cloud Run
+  
 ---
 
 ## 4. Repository Structure
 
 ```
-.
-├── inference_service/                 # Dockerized model inference service for Cloud Run
-│   ├── Dockerfile                     # Container definition for the API service
-│   └── Dockerfile.txt                 # Backup/reference copy of Dockerfile
+
+├── inference_service/                         # FastAPI-based ML inference API deployed to Cloud Run
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                            # FastAPI application with / and /predict endpoints
+│   │   └── model/
+│   │       ├── __init__.py
+│   │       ├── model.py                       # Loads the trained model and performs predictions
+│   │       └── restaurant_model.pkl           # Trained Random Forest model artifact
+│   ├── Dockerfile                             # Container definition for the inference service
+│   ├── Dockerfile.txt                         # Backup/reference copy of Dockerfile
+│   └── requirements.txt                       # Python dependencies for FastAPI and scikit-learn
 │
-├── project_notebooks/                 # Main data science notebooks
-│   ├── analysis.ipynb                 # Statistical tests and hypothesis analysis
-│   ├── eda.ipynb                      # Data cleaning, feature engineering, and visualizations
-│   └── ml.ipynb                       # Model training and evaluation
+├── project_notebooks/                         # Main data science notebooks
+│   ├── analysis.ipynb                         # Statistical tests and hypothesis analysis
+│   ├── eda.ipynb                              # Data cleaning, feature engineering, and visualizations
+│   └── ml.ipynb                               # Model training, evaluation, and model export
 │
-├── static/
-│   └── interactive/                   # Standalone Plotly HTML files used by the website
-│       ├── hyp1_plot1.html            # Hypothesis 1 interactive visualization
-│       ├── hyp1_plot2.html
-│       ├── hyp2_plot1.html            # Hypothesis 2 interactive visualization
-│       ├── hyp2_plot2.html
-│       ├── hyp4_plot1.html            # Hypothesis 4 interactive visualization
-│       ├── hyp4_plot2.html
-│       ├── hyp5_plot1.html            # Hypothesis 5 interactive visualization
-│       ├── hyp5_plot2.html
-│       └── model_comparison.html      # Interactive ML model comparison chart
+├── website/                                   # Flask web application deployed to Google App Engine
+│   ├── static/
+│   │   └── interactive/                       # Standalone Plotly HTML files used by the website
+│   │       ├── hyp1_plot1.html                # Hypothesis 1 interactive visualization
+│   │       ├── hyp1_plot2.html
+│   │       ├── hyp2_plot1.html                # Hypothesis 2 interactive visualization
+│   │       ├── hyp2_plot2.html
+│   │       ├── hyp4_plot1.html                # Hypothesis 4 interactive visualization
+│   │       ├── hyp4_plot2.html
+│   │       ├── hyp5_plot1.html                # Hypothesis 5 interactive visualization
+│   │       ├── hyp5_plot2.html
+│   │       └── model_comparison.html          # Interactive machine learning model comparison
+│   ├── .gcloudignore                          # Files excluded during App Engine deployment
+│   ├── Procfile                               # Gunicorn startup command
+│   ├── app.py                                 # Main Flask application and website logic
+│   ├── app.yaml                               # App Engine configuration and scaling settings
+│   ├── cs163prject (1).ipynb                  # Notebook used to embed appendix figures
+│   ├── index.html                             # Optional exported notebook HTML
+│   ├── requirements.txt                       # Python dependencies for the website
+│   └── runtime.txt                            # Python runtime version
 │
-├── website/                           # Flask web application deployed to App Engine
-│   ├── .gcloudignore                  # Files excluded during deployment
-│   ├── Procfile                       # Gunicorn startup command
-│   ├── app.py                         # Main Flask application
-│   ├── app.yaml                       # Google App Engine configuration
-│   ├── cs163prject (1).ipynb          # Notebook used to embed appendix figures
-│   ├── index.html                     # Optional exported notebook HTML
-│   ├── requirements.txt               # Python dependencies for the web app
-│   └── runtime.txt                    # Python runtime version
-│
-├── .dockerignore                      # Files excluded from Docker builds
-├── .gcloudignore                      # Root deployment ignore file
-├── .gitattributes                     # Git LFS and file handling settings
-├── .gitignore                         # Files excluded from version control
-└── README.md                          # Project documentation
+├── .dockerignore                              # Files excluded from Docker builds
+├── .gcloudignore                              # Root deployment ignore file
+├── .gitattributes                             # Git file handling settings
+├── .gitignore                                 # Files excluded from version control
+└── README.md                                  # Project documentation
 ```
 
 `project_notebooks/`
@@ -156,7 +164,7 @@ Contains the Flask application and deployment configuration used to host the fin
 
 `inference_service/`
 
-Contains Docker-related files for a future Cloud Run API that can serve model predictions in real time.
+Contains the FastAPI-based machine learning inference service deployed on Google Cloud Run. The service loads the trained Random Forest model and exposes a `/predict` endpoint that returns the predicted probability that a restaurant is open.
 
 ---
 
@@ -169,11 +177,12 @@ Yelp Open Dataset + UberEats Data
      (EDA, Feature Engineering, ML)
                 │
                 ▼
-   Processed Features + Plotly HTML Files
-                │
-                ├──────────────► static/interactive/
+   Trained Random Forest Model (.pkl)
                 │
                 ▼
+ Cloud Run Inference Service (FastAPI)
+                ▲
+                │
       Flask Website (website/app.py)
                 │
                 ▼
@@ -181,9 +190,6 @@ Yelp Open Dataset + UberEats Data
                 │
                 ▼
             End Users
-                │
-                ▼
-   Cloud Run Inference Service
 ```
 ### Scalability Discussion
 #### Google App Engine Scaling
@@ -201,39 +207,64 @@ This allows Google Cloud to automatically create additional instances when traff
 
 #### Location of Code
 
-Docker configuration: inference_service/Dockerfile
-Model training code: project_notebooks/ml.ipynb
+- Docker configuration: `inference_service/Dockerfile`
+- API entry point: `inference_service/app/main.py`
+- Model loading logic: `inference_service/app/model/model.py`
+- Trained model: `inference_service/app/model/restaurant_model.pkl`
+- Model training notebook: `project_notebooks/ml.ipynb`
 
 #### Purpose
 
-The inference service is designed to provide real-time predictions for whether a restaurant is likely to be open.
+The inference service provides real-time predictions for whether a restaurant is likely to be open.
 
-Input
+### API Endpoints
 
-Restaurant features such as:
+- `GET /` — Health check
+- `POST /predict` — Returns a prediction and probability
 
+### Input Features
+
+The service accepts the following features:
+
+- `log_reviews`
+- `stars`
+- `avg_sentiment`
+- `avg_complaints`
+- `delivery_presence`
+- `ubereats_score`
+- `ubereats_ratings`
+- `price_level`
+
+### Output
+
+Example response:
+
+```
+{
+  "prediction": 1,
+  "probability_open": 0.82
+}
+```
 ---
 
 ## 7. Cloud Data Storage
 
-- Data originates from the Yelp Open Dataset
-- Due to dataset size, processing is done locally and/or in Google Colab
-- A processed subset is used within the application
-- Large raw datasets are not stored directly in the repository
+The raw Yelp and UberEats datasets are processed in Google Colab and are not stored directly in the GitHub repository due to their size.
+
+The following derived assets are stored in Google Cloud services:
+
+- The App Engine website stores static figures and interactive Plotly HTML files.
+- The Cloud Run inference service stores the trained Random Forest model (`restaurant_model.pkl`) inside the deployed container image.
+- Processed restaurant-level features are used to generate visualizations and train the model.
+
+The website consumes:
+1. Static and interactive visualization files generated from the processed dataset.
+2. Real-time predictions returned by the Cloud Run inference service.
 
 ---
 ## 8. Website Link
 
 https://cs163project-491022.uc.r.appspot.com/
-
----
-
-## Key Findings
-
-- Review count is the strongest predictor of operating status
-- Star ratings have moderate influence
-- Sentiment and complaint frequency have weak but statistically significant effects
-- UberEats features provide slight improvement in predictive performance
 
 ---
 
